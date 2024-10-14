@@ -6,6 +6,12 @@
     "name": "Serhii Pimenov",
     "email": "serhii@pimenov.com.ua"
   },
+  "keywords": [
+    "ESBuild",
+    "ESBuild Plugin",
+    "Progress Bar",
+    "Build Progress"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
