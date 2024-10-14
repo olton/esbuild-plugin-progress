@@ -12,11 +12,12 @@ const oraDefaults = {
 export default (options) => {
     const spinnerOptions = { ...oraDefaults, ...(typeof options === 'string' ? { text: options } : options) }
     const spinner = ora( spinnerOptions )
-    let startTime = Date.now()
+    let startTime
 
     return {
         name: 'progress',
         setup(build) {
+            startTime = Date.now()
             build.onStart(() => {
                 spinner.start()
             })
