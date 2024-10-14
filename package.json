@@ -1,0 +1,26 @@
+{
+  "name": "@olton/esbuild-plugin-progress",
+  "version": "0.1.0",
+  "description": "A plugin for esbuild that shows a progress bar",
+  "author": {
+    "name": "Serhii Pimenov",
+    "email": "serhii@pimenov.com.ua"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/olton/esbuild-plugin-progress.git"
+  },
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "ora": "^8.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}
