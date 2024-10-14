@@ -4,8 +4,8 @@ A plugin to add a progress spinner to esbuild
 
 ---
 
-[![npm version](https://badge.fury.io/js/%40olton%2Fesbuild-plugin-progress.svg)](https://badge.fury.io/js/%40olton%2Fesbuild-plugin-progress)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![npm](https://img.shields.io/npm/v/@olton/esbuild-plugin-progress)](https://www.npmjs.com/package/@olton/esbuild-plugin-progress)
+![GitHub](https://img.shields.io/github/license/olton/esbuild-plugin-progress)
 
 ---
 
