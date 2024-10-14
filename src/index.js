@@ -17,8 +17,8 @@ export default (options) => {
     return {
         name: 'progress',
         setup(build) {
-            startTime = Date.now()
             build.onStart(() => {
+                startTime = Date.now()
                 spinner.start()
             })
             build.onEnd((result) => {
