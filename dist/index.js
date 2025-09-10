@@ -1678,6 +1678,449 @@ var require_emoji_regex = __commonJS({
   }
 });
 
+// node_modules/@olton/terminal/dist/terminal.js
+var ESC = "\x1B";
+var CSI = ESC + "[";
+var OSC = ESC + "]";
+var DCS = ESC + "P";
+var terminal = process.stdout;
+var input = process.stdin;
+var Colors = {
+  black: "30",
+  red: "31",
+  green: "32",
+  yellow: "33",
+  blue: "34",
+  magenta: "35",
+  cyan: "36",
+  white: "37",
+  blackBright: "90",
+  redBright: "91",
+  greenBright: "92",
+  yellowBright: "93",
+  blueBright: "94",
+  magentaBright: "95",
+  cyanBright: "96",
+  whiteBright: "97",
+  bgBlack: "40",
+  bgRed: "41",
+  bgGreen: "42",
+  bgYellow: "43",
+  bgBlue: "44",
+  bgMagenta: "45",
+  bgCyan: "46",
+  bgWhite: "47",
+  bgBlackBright: "100",
+  bgRedBright: "101",
+  bgGreenBright: "102",
+  bgYellowBright: "103",
+  bgBlueBright: "104",
+  bgMagentaBright: "105",
+  bgCyanBright: "106",
+  bgWhiteBright: "107",
+  default: "39",
+  bgDefault: "49",
+  gray: "38;5;245",
+  bgGray: "48;5;245",
+  grayBright: "38;5;250",
+  bgGrayBright: "48;5;250",
+  fromHex: (hex, bg = false) => {
+    if (hex.startsWith("#")) hex = hex.slice(1);
+    if (hex.length === 3) {
+      hex = hex.split("").map((c) => c + c).join("");
+    }
+    if (hex.length !== 6) {
+      throw new Error("Invalid hex color format");
+    }
+    const bigint = parseInt(hex, 16);
+    const r = bigint >> 16 & 255;
+    const g = bigint >> 8 & 255;
+    const b = bigint & 255;
+    return `${bg ? "48" : "38"};2;` + [r, g, b].join(";");
+  },
+  toBg: (color) => {
+    if (color.startsWith("bg")) return color;
+    if (color.startsWith("#")) return Colors.fromHex(color, true);
+    return "bg" + color.charAt(0).toUpperCase() + color.slice(1);
+  },
+  fg: (index2) => `38;5;${index2}`,
+  bg: (index2) => `48;5;${index2}`,
+  rgb: (r, g, b) => `38;2;${r};${g};${b}`,
+  bgRgb: (r, g, b) => `48;2;${r};${g};${b}`,
+  get(color, bg = false) {
+    return ("" + color).startsWith("#") ? Colors.fromHex(color, bg) : isNaN(Number(color)) ? Colors[color] : Colors[bg ? "bg" : "fg"](color);
+  }
+};
+var colors_default = Colors;
+var Styles = {
+  bold: "1",
+  dim: "2",
+  italic: "3",
+  underline: "4",
+  blink: "6",
+  inverse: "7",
+  hidden: "8",
+  strike: "9"
+};
+var style_default = Styles;
+var Gradient = class {
+  constructor(colors = ["#ff0000", "#00ff00"]) {
+    this.colors = colors.map((color) => {
+      if (!color.startsWith("#")) {
+        color = `#${color}`;
+      }
+      return this.expandColor(color);
+    });
+  }
+  expandColor(color) {
+    if (color.length === 7) {
+      return color;
+    }
+    let expanded_color = `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`;
+    return expanded_color.substring(0, 7);
+  }
+  /**
+   * Створити градієнтний текст
+   * @param {string} text - Текст для відображення
+   * @param {Object} options - Опції форматування
+   * @returns {string} - Відформатований текст
+   */
+  colorize(text) {
+    if (!text || text.length === 0) return "";
+    const chars = text.split("");
+    let result = "";
+    for (let i = 0; i < chars.length; i++) {
+      const ratio = i / (chars.length - 1 || 1);
+      const color = this.interpolateColor(ratio);
+      result += `${CSI}${colors_default.fromHex(color)}m${chars[i]}`;
+    }
+    return result + `${CSI}0m`;
+  }
+  /**
+   * Створити градієнтний текст зі збереженням додаткових стилів
+   * @param {string} text - Текст для відображення
+   * @param {string} styleCode - Код стилю у форматі ANSI
+   * @returns {string} - Відформатований текст
+   */
+  colorizeWithStyle(text, styleCode = "") {
+    if (!text || text.length === 0) return "";
+    const chars = text.split("");
+    let result = "";
+    for (let i = 0; i < chars.length; i++) {
+      const ratio = i / (chars.length - 1 || 1);
+      const color = this.interpolateColor(ratio);
+      if (styleCode) {
+        result += `${CSI}${styleCode};${colors_default.fromHex(color)}m${chars[i]}`;
+      } else {
+        result += `${CSI}${colors_default.fromHex(color)}m${chars[i]}`;
+      }
+    }
+    return result + `${CSI}0m`;
+  }
+  /**
+   * Інтерполяція кольору в градієнті
+   * @param {number} ratio - Значення від 0 до 1
+   * @returns {string} - Колір в HEX форматі
+   */
+  interpolateColor(ratio) {
+    if (this.colors.length === 1) return this.colors[0];
+    const colorPosition = ratio * (this.colors.length - 1);
+    const colorIndex = Math.floor(colorPosition);
+    if (colorPosition === colorIndex) {
+      return this.colors[colorIndex];
+    }
+    const startColor = this.colors[colorIndex];
+    const endColor = this.colors[colorIndex + 1];
+    const localRatio = colorPosition - colorIndex;
+    return this.interpolateHexColors(startColor, endColor, localRatio);
+  }
+  /**
+   * Інтерполяція між двома HEX кольорами
+   * @param {string} startColor - Початковий колір в HEX
+   * @param {string} endColor - Кінцевий колір в HEX
+   * @param {number} ratio - Значення від 0 до 1
+   * @returns {string} - Результуючий колір в HEX
+   */
+  interpolateHexColors(startColor, endColor, ratio) {
+    const start = startColor.replace("#", "");
+    const end = endColor.replace("#", "");
+    const r1 = parseInt(start.substring(0, 2), 16);
+    const g1 = parseInt(start.substring(2, 4), 16);
+    const b1 = parseInt(start.substring(4, 6), 16);
+    const r2 = parseInt(end.substring(0, 2), 16);
+    const g2 = parseInt(end.substring(2, 4), 16);
+    const b2 = parseInt(end.substring(4, 6), 16);
+    const r = Math.round(r1 + (r2 - r1) * ratio);
+    const g = Math.round(g1 + (g2 - g1) * ratio);
+    const b = Math.round(b1 + (b2 - b1) * ratio);
+    return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+  }
+};
+var terminal2 = process.stdout;
+var themes_default = {
+  currentTheme: null,
+  default: {
+    color: ["default", "bgDefault"],
+    style: []
+  },
+  sunset: {
+    color: ["#FFDDCC", "#331122"],
+    style: ["italic"]
+  },
+  ocean: {
+    color: ["#00CCFF", "#001122"],
+    style: ["bold"]
+  },
+  forest: {
+    color: ["#00FF00", "#003300"],
+    style: ["underline"]
+  },
+  desert: {
+    color: ["#CCAA00", "#331100"],
+    style: []
+  },
+  twilight: {
+    color: ["#AA00FF", "#220022"],
+    style: ["inverse"]
+  },
+  matrix: {
+    color: ["#00FF00", "#000000"],
+    style: ["bold"]
+  },
+  error: {
+    color: ["#FF5555", "#000000"],
+    style: ["bold"]
+  },
+  warning: {
+    color: ["#FFAA00", "#000000"],
+    style: ["bold"]
+  },
+  success: {
+    color: ["#00FF00", "#000000"],
+    style: ["bold"]
+  },
+  info: {
+    color: ["#00AAFF", "#000000"],
+    style: ["bold"]
+  },
+  set(theme = "sunset", changeConsoleColor = false) {
+    const selectedTheme = this[theme] || this.default;
+    const { color, style } = selectedTheme;
+    this.currentTheme = { color, style };
+    if (changeConsoleColor) {
+      const fg = colors_default.get(color[0], false);
+      const bg = colors_default.get(color[1], true);
+      terminal2.write(`${CSI}${fg}m`);
+      terminal2.write(`${CSI}${bg}m`);
+      terminal2.write(`${CSI}K`);
+      terminal2.write(`${CSI}2J${CSI}0;0H`);
+    }
+  },
+  reset() {
+    terminal2.write(`${CSI}0m`);
+    terminal2.write(`${CSI}2J${CSI}0;0H`);
+    this.currentTheme = null;
+  },
+  add(name, theme) {
+    this[name] = theme;
+  }
+};
+function str2array(str = "") {
+  return str.split(",").map((c) => c.trim()).filter((c) => c);
+}
+var Term = class {
+  constructor(text = "", options = {}) {
+    this.text = text;
+    this.options = options;
+  }
+  [Symbol.toPrimitive]() {
+    if (this.text && this.text.length > 0) {
+      return this.toString();
+    } else {
+      return "";
+    }
+  }
+  toString() {
+    const r = [];
+    let { style, color, gradient: gradient2, theme } = this.options;
+    if (theme) {
+      if (themes_default[theme]) {
+        color = themes_default[theme].color;
+        style = themes_default[theme].style;
+        gradient2 = themes_default[theme].gradient;
+      }
+    }
+    const [fg = "default", bg = "bgDefault"] = Array.isArray(color) ? color : str2array(color);
+    const styles3 = Array.isArray(style) ? style : str2array(style);
+    const gradientColors = Array.isArray(gradient2) ? gradient2 : str2array(gradient2);
+    for (const s of styles3) {
+      if (style_default[s]) r.push(style_default[s]);
+    }
+    if (gradientColors.length > 0) {
+      const gradientObj = new Gradient(gradientColors);
+      let styledPrefix = "";
+      if (r.length > 0) {
+        styledPrefix = `${CSI}${r.join(";")}m`;
+      }
+      let bgCode = "";
+      if (bg !== "bgDefault") {
+        bgCode = bg.startsWith("#") ? colors_default.fromHex(bg, true) : isNaN(Number(bg)) ? colors_default[colors_default.toBg(bg)] : colors_default.bg(bg);
+      }
+      if (bgCode) {
+        r.push(bgCode);
+      }
+      if (r.length > 0) {
+        return styledPrefix + gradientObj.colorizeWithStyle(this.text, r.join(";"));
+      } else {
+        return gradientObj.colorize(this.text);
+      }
+    } else {
+      r.push(("" + fg).startsWith("#") ? colors_default.fromHex(fg) : isNaN(Number(fg)) ? colors_default[fg] : colors_default.fg(fg));
+      r.push(("" + bg).startsWith("#") ? colors_default.fromHex(bg, true) : isNaN(Number(bg)) ? colors_default[colors_default.toBg(bg)] : colors_default.bg(bg));
+    }
+    if (typeof this.text === "string" && this.text.includes(CSI)) {
+      const styleRegex = new RegExp(`\\x1B\\[[0-9;]+m([\\s\\S]*?)\\x1B\\[0m`, "g");
+      let result = "";
+      let lastIndex = 0;
+      let match;
+      const currentStyle = `${CSI}${r.join(";")}m`;
+      while ((match = styleRegex.exec(this.text)) !== null) {
+        const textBefore = this.text.substring(lastIndex, match.index);
+        if (textBefore) {
+          result += currentStyle + textBefore + `${CSI}0m`;
+        }
+        result += match[0];
+        lastIndex = match.index + match[0].length;
+      }
+      const textAfter = this.text.substring(lastIndex);
+      if (textAfter) {
+        result += currentStyle + textAfter + `${CSI}0m`;
+      }
+      return result;
+    } else {
+      const output = [CSI, r.join(";"), "m", this.text, CSI + "0m"];
+      return output.join("");
+    }
+  }
+};
+var term = (text, options) => {
+  const currentTheme = themes_default.currentTheme;
+  if (currentTheme) {
+    options = { ...options, ...currentTheme };
+  }
+  return new Term(text, options).toString();
+};
+var terminal3 = process.stdout;
+function createStyleBuilder(initialStyles = [], initialColors = ["default", "bgDefault"], initialGradientColors = []) {
+  const styles3 = [...initialStyles];
+  const colors = [...initialColors];
+  const gradientColors = [...initialGradientColors];
+  const styleBuilderBase = {
+    _styles: styles3,
+    _colors: colors,
+    _gradientColors: gradientColors,
+    write: function(text) {
+      const options = {};
+      if (styles3.length > 0) {
+        options.style = styles3;
+      }
+      if (Array.isArray(colors)) {
+        options.color = [];
+        if (colors[0] !== "default") options.color.push(colors[0]);
+        if (colors[1] !== "bgDefault") options.color.push(colors[1]);
+      } else if (typeof colors === "string") {
+        options.color = [colors];
+      }
+      if (gradientColors.length > 0) {
+        options.gradient = gradientColors;
+      }
+      return term(text, options);
+    },
+    error: function(text) {
+      const options = {
+        style: [...styles3, "bold"],
+        color: ["#fff", "#FF5555"]
+      };
+      return term(text, options);
+    },
+    warning: function(text) {
+      const options = {
+        style: [...styles3, "bold"],
+        color: ["#000", "#ffae44"]
+      };
+      return term(text, options);
+    },
+    info: function(text) {
+      const options = {
+        style: [...styles3, "bold"],
+        color: ["#fff", "#55AAFF"]
+      };
+      return term(text, options);
+    },
+    success: function(text) {
+      const options = {
+        style: [...styles3, "bold"],
+        color: ["#fff", "#16a63c"]
+      };
+      return term(text, options);
+    }
+  };
+  return new Proxy(styleBuilderBase, {
+    get(target, prop) {
+      if (prop in target) {
+        return target[prop];
+      }
+      if (prop in themes_default) {
+        const newColors = themes_default[prop].color;
+        const newStyles = themes_default[prop].style;
+        const newGradient = themes_default[prop].gradient;
+        return createStyleBuilder(newStyles, newColors, newGradient);
+      }
+      if (prop in style_default) {
+        const newStyles = [...styles3];
+        if (!newStyles.includes(prop)) {
+          newStyles.push(prop);
+        }
+        return createStyleBuilder(newStyles, colors, gradientColors);
+      }
+      if (prop in colors_default && !prop.startsWith("bg")) {
+        const newColors = [...colors];
+        newColors[0] = prop;
+        return createStyleBuilder(styles3, newColors, gradientColors);
+      }
+      if (prop.startsWith("bg")) {
+        const bgProp = prop.substring(1, 1).toLowerCase() + prop.substring(2);
+        const newColors = [...colors];
+        newColors[1] = bgProp;
+        return createStyleBuilder(styles3, newColors, gradientColors);
+      }
+      if (prop === "gradient") {
+        return function(...args) {
+          const newGradientColors = [...gradientColors];
+          newGradientColors.push(...args);
+          return createStyleBuilder(styles3, colors, newGradientColors);
+        };
+      }
+      if (prop === "hex" || prop === "ind") {
+        return function(fg, bg) {
+          const newColors = ["default", "bgDefault"];
+          if (typeof fg !== "undefined" && fg !== null) newColors[0] = fg;
+          if (typeof bg !== "undefined" && bg !== null) newColors[1] = bg;
+          return createStyleBuilder(styles3, newColors, gradientColors);
+        };
+      }
+      return function() {
+        console.warn(`Unknown method or property: ${prop}`);
+        return this;
+      };
+    }
+  });
+}
+var termx = createStyleBuilder();
+
+// node_modules/ora/index.js
+import process9 from "node:process";
+
 // node_modules/chalk/source/vendor/ansi-styles/index.js
 var ANSI_BACKGROUND_OFFSET = 10;
 var wrapAnsi16 = (offset = 0) => (code) => `\x1B[${code + offset}m`;
@@ -1938,10 +2381,10 @@ function _supportsColor(haveStream, { streamIsTTY, sniffFlags = true } = {}) {
     return 1;
   }
   if ("CI" in env) {
-    if ("GITHUB_ACTIONS" in env || "GITEA_ACTIONS" in env) {
+    if (["GITHUB_ACTIONS", "GITEA_ACTIONS", "CIRCLECI"].some((key) => key in env)) {
       return 3;
     }
-    if (["TRAVIS", "CIRCLECI", "APPVEYOR", "GITLAB_CI", "BUILDKITE", "DRONE"].some((sign) => sign in env) || env.CI_NAME === "codeship") {
+    if (["TRAVIS", "APPVEYOR", "GITLAB_CI", "BUILDKITE", "DRONE"].some((sign) => sign in env) || env.CI_NAME === "codeship") {
       return 1;
     }
     return min;
@@ -2166,9 +2609,6 @@ Object.defineProperties(createChalk.prototype, styles2);
 var chalk = createChalk();
 var chalkStderr = createChalk({ level: stderrColor ? stderrColor.level : 0 });
 var source_default = chalk;
-
-// node_modules/ora/index.js
-import process9 from "node:process";
 
 // node_modules/cli-cursor/index.js
 import process5 from "node:process";
@@ -2505,10 +2945,10 @@ var {
 } = signalExitWrap(processOk(process3) ? new SignalExit(process3) : new SignalExitFallback());
 
 // node_modules/restore-cursor/index.js
-var terminal = process4.stderr.isTTY ? process4.stderr : process4.stdout.isTTY ? process4.stdout : void 0;
-var restoreCursor = terminal ? onetime_default(() => {
+var terminal4 = process4.stderr.isTTY ? process4.stderr : process4.stdout.isTTY ? process4.stdout : void 0;
+var restoreCursor = terminal4 ? onetime_default(() => {
   onExit(() => {
-    terminal.write("\x1B[?25h");
+    terminal4.write("\x1B[?25h");
   }, { alwaysLast: true });
 }) : () => {
 };
@@ -2734,7 +3174,8 @@ var Ora = class {
   #linesToClear = 0;
   #isDiscardingStdin = false;
   #lineCount = 0;
-  #frameIndex = 0;
+  #frameIndex = -1;
+  #lastSpinnerFrameTime = 0;
   #options;
   #spinner;
   #stream;
@@ -2810,7 +3251,7 @@ var Ora = class {
     return this.#spinner;
   }
   set spinner(spinner) {
-    this.#frameIndex = 0;
+    this.#frameIndex = -1;
     this.#initialInterval = void 0;
     if (typeof spinner === "object") {
       if (spinner.frames === void 0) {
@@ -2898,12 +3339,16 @@ var Ora = class {
     this.#isSilent = value;
   }
   frame() {
+    const now = Date.now();
+    if (this.#frameIndex === -1 || now - this.#lastSpinnerFrameTime >= this.interval) {
+      this.#frameIndex = ++this.#frameIndex % this.#spinner.frames.length;
+      this.#lastSpinnerFrameTime = now;
+    }
     const { frames } = this.#spinner;
     let frame = frames[this.#frameIndex];
     if (this.color) {
       frame = source_default[this.color](frame);
     }
-    this.#frameIndex = ++this.#frameIndex % frames.length;
     const fullPrefixText = typeof this.#prefixText === "string" && this.#prefixText !== "" ? this.#prefixText + " " : "";
     const fullText = typeof this.text === "string" ? " " + this.text : "";
     const fullSuffixText = typeof this.#suffixText === "string" && this.#suffixText !== "" ? " " + this.#suffixText : "";
@@ -3001,7 +3446,8 @@ var Ora = class {
     const fullPrefixText = this.#getFullPrefixText(prefixText, " ");
     const symbolText = options.symbol ?? " ";
     const text = options.text ?? this.text;
-    const fullText = typeof text === "string" ? " " + text : "";
+    const separatorText = symbolText ? " " : "";
+    const fullText = typeof text === "string" ? separatorText + text : "";
     const suffixText = options.suffixText ?? this.#suffixText;
     const fullSuffixText = this.#getFullSuffixText(suffixText, " ");
     const textToWrite = fullPrefixText + symbolText + fullText + fullSuffixText + "\n";
@@ -3022,7 +3468,7 @@ var oraDefaults = {
   failText: "Build failed with %s errors.",
   succeedText: "Build completed in %s ms!"
 };
-var src_default = (options) => {
+var index_default = (options) => {
   const spinnerOptions = { ...oraDefaults, ...typeof options === "string" ? { text: options } : options };
   const spinner = ora(spinnerOptions);
   let startTime;
@@ -3035,9 +3481,9 @@ var src_default = (options) => {
       });
       build.onEnd((result) => {
         if (result.errors.length > 0) {
-          spinner.fail(`${spinnerOptions.failText.replace("%s", "" + result.errors.length)}`);
+          spinner.fail(`${spinnerOptions.failText.replace("%s", termx.red.write(result.errors.length))}`);
         } else {
-          spinner.succeed(`${spinnerOptions.succeedText.replace("%s", source_default.cyanBright(Date.now() - startTime))}`);
+          spinner.succeed(`${spinnerOptions.succeedText.replace("%s", termx.cyanBright.write(Date.now() - startTime))}`);
         }
         spinner.stop();
       });
@@ -3045,5 +3491,15 @@ var src_default = (options) => {
   };
 };
 export {
-  src_default as default
+  index_default as default
 };
+/*! Bundled license information:
+
+@olton/terminal/dist/terminal.js:
+  (*!
+   * Terminal v0.6.0
+   * Build: 18.05.2025, 12:53:40
+   * Copyright 2025 by Serhii Pimenov
+   * Licensed under MIT
+   *)
+*/

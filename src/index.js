@@ -1,4 +1,4 @@
-import chalk from "chalk";
+import { termx } from "@olton/terminal";
 import ora from "ora";
 
 const oraDefaults = {
@@ -23,9 +23,9 @@ export default (options) => {
             })
             build.onEnd((result) => {
                 if (result.errors.length > 0) {
-                    spinner.fail(`${spinnerOptions.failText.replace('%s', ""+result.errors.length)}`)
+                    spinner.fail(`${spinnerOptions.failText.replace('%s', termx.red.write(result.errors.length))}`)
                 } else {
-                    spinner.succeed(`${spinnerOptions.succeedText.replace('%s', chalk.cyanBright(Date.now() - startTime))}`)
+                    spinner.succeed(`${spinnerOptions.succeedText.replace('%s', termx.cyanBright.write(Date.now() - startTime))}`)
                 }
                 spinner.stop()
             })
